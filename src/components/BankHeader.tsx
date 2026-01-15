@@ -1,12 +1,21 @@
-import { Link, useLocation } from 'react-router-dom';
-import { Wallet, TrendingUp, Menu } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Wallet, TrendingUp, Menu, LogOut, CreditCard } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 
 export function BankHeader() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleLogout = () => {
+    logout();
+    setMobileMenuOpen(false);
+    navigate('/login');
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -42,6 +51,25 @@ export function BankHeader() {
             <TrendingUp className="w-4 h-4" />
             Améliorations
           </Link>
+          <Link
+            to="/virtual"
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+              isActive('/virtual') 
+                ? 'bg-primary text-primary-foreground' 
+                : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+            }`}
+          >
+            <CreditCard className="w-4 h-4" />
+            Carte virtuelle
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 text-muted-foreground hover:text-foreground hover:bg-secondary"
+            type="button"
+          >
+            <LogOut className="w-4 h-4" />
+            Déconnexion
+          </button>
         </nav>
 
         {/* Mobile Menu Button */}
@@ -80,6 +108,26 @@ export function BankHeader() {
               <TrendingUp className="w-4 h-4" />
               Améliorations
             </Link>
+            <Link
+              to="/virtual"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                isActive('/virtual') 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+              }`}
+            >
+              <CreditCard className="w-4 h-4" />
+              Carte virtuelle
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 text-muted-foreground hover:text-foreground hover:bg-secondary"
+              type="button"
+            >
+              <LogOut className="w-4 h-4" />
+              Déconnexion
+            </button>
           </nav>
         </div>
       )}

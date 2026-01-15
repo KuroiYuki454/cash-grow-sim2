@@ -5,6 +5,8 @@ const jwt = require('jsonwebtoken');
 const { PrismaMariaDb } = require('@prisma/adapter-mariadb');
 const { PrismaClient } = require('./prisma/generated/prisma/client.js');
 
+const crypto = require('crypto');
+
 const adapter = new PrismaMariaDb({
     host: '127.0.0.1',
     user: 'noelson',
@@ -39,6 +41,59 @@ const authenticateToken = (req, res, next) => {
         req.user = user;
         next();
     });
+};
+
+const VIRTUAL_OFFER_LIFETIME_MS = 20 * 1000;
+const VIRTUAL_OFFER_COOLDOWN_MS = 30 * 1000;
+
+const randomFloat = (min, max) => {
+    return Math.random() * (max - min) + min;
+};
+
+const round2 = (value) => {
+    return Math.round(value * 100) / 100;
+};
+
+const generateVirtualOffer = () => {
+    const tiers = [
+        { id: 'small', weight: 55, minBoost: 0.5, maxBoost: 5, costMin: 25, costMax: 120 },
+        { id: 'medium', weight: 30, minBoost: 5, maxBoost: 50, costMin: 80, costMax: 220 },
+        { id: 'large', weight: 12, minBoost: 50, maxBoost: 300, costMin: 150, costMax: 320 },
+        { id: 'legendary', weight: 3, minBoost: 300, maxBoost: 1500, costMin: 250, costMax: 450 },
+    ];
+
+    const totalWeight = tiers.reduce((s, t) => s + t.weight, 0);
+    let r = Math.random() * totalWeight;
+    let tier = tiers[0];
+    for (const t of tiers) {
+        r -= t.weight;
+        if (r <= 0) {
+            tier = t;
+            break;
+        }
+    }
+
+    const incomeBoostRaw = randomFloat(tier.minBoost, tier.maxBoost);
+    const incomeBoost = round2(incomeBoostRaw);
+    const cost = round2(Math.max(10, incomeBoost * randomFloat(tier.costMin, tier.costMax)));
+
+    const names = [
+        'Machine à café autonome',
+        'Distributeur intelligent',
+        'Stand premium',
+        'Mini-atelier',
+        'Robot vendeur',
+        'Kiosque automatique',
+    ];
+
+    const name = names[Math.floor(Math.random() * names.length)];
+
+    return {
+        offer_id: crypto.randomUUID(),
+        offer_name: name,
+        offer_cost: cost,
+        offer_income_boost: incomeBoost,
+    };
 };
 
 // Routes pour les comptes joueurs
@@ -127,6 +182,245 @@ app.put('/api/purchased-upgrade', async (req, res) => {
         res.json(purchased);
     } catch (error) {
         res.status(500).json({ error: 'Failed to update purchased upgrade' });
+    }
+});
+
+// Compte virtuel + offres temporaires
+app.get('/api/virtual-account/:accountId', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.userId !== req.params.accountId) {
+            return res.status(403).json({ error: 'Accès refusé' });
+        }
+
+        const virtual = await prisma.virtualAccount.upsert({
+            where: { account_id: req.params.accountId },
+            create: { account_id: req.params.accountId, balance: 0 },
+            update: {}
+        });
+
+        res.json(virtual);
+    } catch (error) {
+        console.error('Virtual account get error:', error);
+        res.status(500).json({ error: 'Failed to fetch virtual account' });
+    }
+});
+
+app.post('/api/virtual-account/:accountId/transfer', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.userId !== req.params.accountId) {
+            return res.status(403).json({ error: 'Accès refusé' });
+        }
+
+        const amount = Number(req.body?.amount);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return res.status(400).json({ error: 'Montant invalide' });
+        }
+
+        const result = await prisma.$transaction(async (tx) => {
+            const account = await tx.playerAccount.findUnique({ where: { id: req.params.accountId } });
+            if (!account) throw new Error('Account not found');
+
+            if (account.balance < amount) {
+                return { ok: false, error: 'Fonds insuffisants' };
+            }
+
+            const updatedAccount = await tx.playerAccount.update({
+                where: { id: req.params.accountId },
+                data: {
+                    balance: account.balance - amount,
+                    last_updated_at: new Date(),
+                }
+            });
+
+            const virtual = await tx.virtualAccount.upsert({
+                where: { account_id: req.params.accountId },
+                create: { account_id: req.params.accountId, balance: amount },
+                update: { balance: { increment: amount } }
+            });
+
+            return { ok: true, account: updatedAccount, virtual };
+        });
+
+        if (!result.ok) {
+            return res.status(400).json({ error: result.error });
+        }
+
+        res.json({ account: result.account, virtual: result.virtual });
+    } catch (error) {
+        console.error('Transfer error:', error);
+        res.status(500).json({ error: 'Failed to transfer funds' });
+    }
+});
+
+app.get('/api/virtual-offer/:accountId', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.userId !== req.params.accountId) {
+            return res.status(403).json({ error: 'Accès refusé' });
+        }
+
+        const now = new Date();
+        const state = await prisma.virtualOfferState.upsert({
+            where: { account_id: req.params.accountId },
+            create: { account_id: req.params.accountId },
+            update: {}
+        });
+
+        const expiresAt = state.expires_at ? new Date(state.expires_at) : null;
+        const nextOfferAt = state.next_offer_at ? new Date(state.next_offer_at) : null;
+        const hasActiveOffer = state.offer_id && expiresAt && now < expiresAt;
+
+        if (hasActiveOffer) {
+            return res.json({
+                offer: {
+                    id: state.offer_id,
+                    name: state.offer_name,
+                    cost: state.offer_cost,
+                    income_boost: state.offer_income_boost,
+                    spawned_at: state.offer_spawned_at,
+                    expires_at: state.expires_at,
+                    purchased_at: state.purchased_at,
+                },
+                next_offer_at: state.next_offer_at,
+            });
+        }
+
+        if (nextOfferAt && now < nextOfferAt) {
+            return res.json({ offer: null, next_offer_at: state.next_offer_at });
+        }
+
+        const offer = generateVirtualOffer();
+        const spawnedAt = now;
+        const newExpiresAt = new Date(spawnedAt.getTime() + VIRTUAL_OFFER_LIFETIME_MS);
+        const newNextOfferAt = new Date(newExpiresAt.getTime() + VIRTUAL_OFFER_COOLDOWN_MS);
+
+        const updated = await prisma.virtualOfferState.update({
+            where: { account_id: req.params.accountId },
+            data: {
+                offer_id: offer.offer_id,
+                offer_name: offer.offer_name,
+                offer_cost: offer.offer_cost,
+                offer_income_boost: offer.offer_income_boost,
+                offer_spawned_at: spawnedAt,
+                expires_at: newExpiresAt,
+                next_offer_at: newNextOfferAt,
+                purchased_at: null,
+            }
+        });
+
+        return res.json({
+            offer: {
+                id: updated.offer_id,
+                name: updated.offer_name,
+                cost: updated.offer_cost,
+                income_boost: updated.offer_income_boost,
+                spawned_at: updated.offer_spawned_at,
+                expires_at: updated.expires_at,
+                purchased_at: updated.purchased_at,
+            },
+            next_offer_at: updated.next_offer_at,
+        });
+    } catch (error) {
+        console.error('Virtual offer get error:', error);
+        res.status(500).json({ error: 'Failed to fetch virtual offer' });
+    }
+});
+
+app.post('/api/virtual-offer/:accountId/purchase', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.userId !== req.params.accountId) {
+            return res.status(403).json({ error: 'Accès refusé' });
+        }
+
+        const now = new Date();
+
+        const result = await prisma.$transaction(async (tx) => {
+            const state = await tx.virtualOfferState.findUnique({ where: { account_id: req.params.accountId } });
+            if (!state || !state.offer_id || !state.expires_at) {
+                return { ok: false, error: 'Aucune offre active' };
+            }
+
+            const expiresAt = new Date(state.expires_at);
+            if (now >= expiresAt) {
+                return { ok: false, error: 'Offre expirée' };
+            }
+
+            if (state.purchased_at) {
+                return { ok: false, error: 'Offre déjà achetée' };
+            }
+
+            const cost = Number(state.offer_cost);
+            const incomeBoost = Number(state.offer_income_boost);
+            if (!Number.isFinite(cost) || !Number.isFinite(incomeBoost)) {
+                return { ok: false, error: 'Offre invalide' };
+            }
+
+            const virtual = await tx.virtualAccount.upsert({
+                where: { account_id: req.params.accountId },
+                create: { account_id: req.params.accountId, balance: 0 },
+                update: {}
+            });
+
+            if (virtual.balance < cost) {
+                return { ok: false, error: 'Solde virtuel insuffisant' };
+            }
+
+            const updatedVirtual = await tx.virtualAccount.update({
+                where: { account_id: req.params.accountId },
+                data: { balance: virtual.balance - cost }
+            });
+
+            const updatedAccount = await tx.playerAccount.update({
+                where: { id: req.params.accountId },
+                data: {
+                    income_per_second: { increment: incomeBoost },
+                    last_updated_at: now,
+                }
+            });
+
+            await tx.virtualPurchase.create({
+                data: {
+                    account_id: req.params.accountId,
+                    offer_id: state.offer_id,
+                    offer_name: state.offer_name || 'Offre',
+                    cost,
+                    income_boost: incomeBoost,
+                }
+            });
+
+            await tx.virtualOfferState.update({
+                where: { account_id: req.params.accountId },
+                data: { purchased_at: now }
+            });
+
+            return { ok: true, virtual: updatedVirtual, account: updatedAccount };
+        });
+
+        if (!result.ok) {
+            return res.status(400).json({ error: result.error });
+        }
+
+        res.json({ virtual: result.virtual, account: result.account });
+    } catch (error) {
+        console.error('Virtual offer purchase error:', error);
+        res.status(500).json({ error: 'Failed to purchase offer' });
+    }
+});
+
+app.get('/api/virtual-purchases/:accountId', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.userId !== req.params.accountId) {
+            return res.status(403).json({ error: 'Accès refusé' });
+        }
+
+        const purchases = await prisma.virtualPurchase.findMany({
+            where: { account_id: req.params.accountId },
+            orderBy: { purchased_at: 'desc' }
+        });
+
+        res.json(purchases);
+    } catch (error) {
+        console.error('Virtual purchases get error:', error);
+        res.status(500).json({ error: 'Failed to fetch virtual purchases' });
     }
 });
 

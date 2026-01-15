@@ -41,6 +41,36 @@ export interface RandomEventState {
     next_event_at: string | null;
 }
 
+export interface VirtualAccount {
+    account_id: string;
+    balance: number;
+}
+
+export interface VirtualOffer {
+    id: string;
+    name: string;
+    cost: number;
+    income_boost: number;
+    spawned_at: string;
+    expires_at: string;
+    purchased_at: string | null;
+}
+
+export interface VirtualOfferResponse {
+    offer: VirtualOffer | null;
+    next_offer_at: string | null;
+}
+
+export interface VirtualPurchase {
+    id: string;
+    account_id: string;
+    offer_id: string;
+    offer_name: string;
+    cost: number;
+    income_boost: number;
+    purchased_at: string;
+}
+
 export interface AuthResponse {
     token: string;
     user: PlayerAccount;
@@ -124,6 +154,131 @@ export const api = {
             body: JSON.stringify(data)
         });
         return response.json();
+    },
+
+    async getVirtualAccount(accountId: string): Promise<VirtualAccount> {
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch(`${API_BASE}/virtual-account/${accountId}`, {
+            headers: {
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            }
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || 'Erreur lors du chargement du compte virtuel');
+        }
+
+        const data = await response.json();
+        return {
+            ...data,
+            balance: parseFloat(data.balance)
+        };
+    },
+
+    async transferToVirtualAccount(accountId: string, amount: number): Promise<{ account: PlayerAccount; virtual: VirtualAccount }> {
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch(`${API_BASE}/virtual-account/${accountId}/transfer`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ amount })
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || 'Erreur lors du transfert');
+        }
+
+        const result = await response.json();
+        return {
+            account: {
+                ...result.account,
+                balance: parseFloat(result.account.balance),
+                income_per_second: parseFloat(result.account.income_per_second)
+            },
+            virtual: {
+                ...result.virtual,
+                balance: parseFloat(result.virtual.balance)
+            }
+        };
+    },
+
+    async getVirtualPurchases(accountId: string): Promise<VirtualPurchase[]> {
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch(`${API_BASE}/virtual-purchases/${accountId}`, {
+            headers: {
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            }
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || 'Erreur lors du chargement des achats');
+        }
+
+        const data = await response.json();
+        return data.map((p: any) => ({
+            ...p,
+            cost: parseFloat(p.cost),
+            income_boost: parseFloat(p.income_boost)
+        }));
+    },
+
+    async getVirtualOffer(accountId: string): Promise<VirtualOfferResponse> {
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch(`${API_BASE}/virtual-offer/${accountId}`, {
+            headers: {
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            }
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || 'Erreur lors du chargement de l\'offre');
+        }
+
+        const data = await response.json();
+        const offer = data.offer ? {
+            ...data.offer,
+            cost: parseFloat(data.offer.cost),
+            income_boost: parseFloat(data.offer.income_boost)
+        } : null;
+
+        return {
+            offer,
+            next_offer_at: data.next_offer_at ?? null
+        };
+    },
+
+    async purchaseVirtualOffer(accountId: string): Promise<{ account: PlayerAccount; virtual: VirtualAccount }> {
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch(`${API_BASE}/virtual-offer/${accountId}/purchase`, {
+            method: 'POST',
+            headers: {
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            }
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || 'Erreur lors de l\'achat');
+        }
+
+        const result = await response.json();
+        return {
+            account: {
+                ...result.account,
+                balance: parseFloat(result.account.balance),
+                income_per_second: parseFloat(result.account.income_per_second)
+            },
+            virtual: {
+                ...result.virtual,
+                balance: parseFloat(result.virtual.balance)
+            }
+        };
     },
 
     async updatePurchasedUpgrade(data: { account_id: string; upgrade_id: string; level: number }): Promise<any> {

@@ -170,18 +170,21 @@ const Index = () => {
                   <ArrowUpRight className="w-4 h-4 text-muted-foreground" />
                 </Link>
 
-                <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-secondary/30 border border-border">
+                <Link
+                  to="/virtual"
+                  className="flex items-center justify-between px-4 py-3 rounded-xl bg-secondary/60 hover:bg-secondary border border-border transition-colors"
+                >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
                       <CreditCard className="w-5 h-5 text-foreground" />
                     </div>
                     <div>
                       <p className="font-medium">Carte virtuelle</p>
-                      <p className="text-xs text-muted-foreground">Bientôt disponible</p>
+                      <p className="text-xs text-muted-foreground">Transferts & offres temporaires</p>
                     </div>
                   </div>
-                  <span className="text-xs text-muted-foreground">Inactif</span>
-                </div>
+                  <ArrowUpRight className="w-4 h-4 text-muted-foreground" />
+                </Link>
               </div>
             </div>
 

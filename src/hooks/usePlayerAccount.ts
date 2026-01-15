@@ -9,6 +9,21 @@ export function usePlayerAccount(incomeMultiplier: number = 1) {
   const [account, setAccount] = useState<PlayerAccount | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const setAccountFromServer = useCallback((next: PlayerAccount) => {
+    setAccount(next);
+  }, []);
+
+  const refreshAccount = useCallback(async () => {
+    if (!user || !token) return;
+
+    try {
+      const fresh = await api.getAccount(user.id);
+      if (fresh) setAccount(fresh);
+    } catch (error) {
+      console.error('Failed to refresh account from DB:', error);
+    }
+  }, [token, user]);
+
   // Load fresh account data from database on mount
   useEffect(() => {
     if (!user || !token) return;
@@ -99,5 +114,7 @@ export function usePlayerAccount(incomeMultiplier: number = 1) {
     updateIncomeRate,
     spendMoney,
     effectiveIncomePerSecond,
+    refreshAccount,
+    setAccountFromServer,
   };
 }

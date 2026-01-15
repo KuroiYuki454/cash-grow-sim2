@@ -24,6 +24,9 @@ model PlayerAccount {
   
   purchased_upgrades PurchasedUpgrade[]
   random_event_state RandomEventState?
+  virtual_account    VirtualAccount?
+  virtual_offer_state VirtualOfferState?
+  virtual_purchases   VirtualPurchase[]
   
   @@map("player_accounts")
 }
@@ -72,4 +75,50 @@ model RandomEventState {
   account PlayerAccount @relation(fields: [account_id], references: [id], onDelete: Cascade)
 
   @@map("random_event_states")
+}
+
+model VirtualAccount {
+  id         String   @id @default(cuid())
+  account_id String   @unique
+  balance    Float    @default(0.00)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  account PlayerAccount @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@map("virtual_accounts")
+}
+
+model VirtualOfferState {
+  id               String   @id @default(cuid())
+  account_id       String   @unique
+  offer_id         String?
+  offer_name       String?
+  offer_cost       Float?
+  offer_income_boost Float?
+  offer_spawned_at DateTime?
+  expires_at       DateTime?
+  next_offer_at    DateTime?
+  purchased_at     DateTime?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  account PlayerAccount @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@map("virtual_offer_states")
+}
+
+model VirtualPurchase {
+  id                String   @id @default(cuid())
+  account_id        String
+  offer_id          String
+  offer_name        String
+  cost              Float
+  income_boost      Float
+  purchased_at      DateTime @default(now())
+
+  account PlayerAccount @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@index([account_id])
+  @@map("virtual_purchases")
 }

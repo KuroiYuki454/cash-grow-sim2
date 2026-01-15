@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { RandomEventProvider } from "@/hooks/useRandomEventState";
 import Index from "./pages/Index";
 import Upgrades from "./pages/Upgrades";
+import VirtualCard from "./pages/VirtualCard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -55,6 +56,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Upgrades />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/virtual"
+              element={
+                <ProtectedRoute>
+                  <VirtualCard />
                 </ProtectedRoute>
               }
             />
