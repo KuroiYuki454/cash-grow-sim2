@@ -1,0 +1,104 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Database Initialization</title>
+    <script src="https://sql.js.org/dist/sql-wasm.js"></script>
+</head>
+<body>
+    <h1>Initializing Database...</h1>
+    <div id="status">Loading sql.js...</div>
+    
+    <script>
+        const sql = `-- Create player_accounts table to store money and income rate
+CREATE TABLE IF NOT EXISTS player_accounts (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+    balance REAL NOT NULL DEFAULT 0.00,
+    income_per_second REAL NOT NULL DEFAULT 0.01,
+    last_updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create upgrades table
+CREATE TABLE IF NOT EXISTS upgrades (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    cost REAL NOT NULL,
+    income_boost REAL NOT NULL,
+    icon TEXT NOT NULL DEFAULT 'trending-up',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    cost_multiplier REAL NOT NULL DEFAULT 1.5,
+    income_multiplier REAL NOT NULL DEFAULT 1.2,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create purchased_upgrades table
+CREATE TABLE IF NOT EXISTS purchased_upgrades (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+    account_id TEXT NOT NULL REFERENCES player_accounts(id) ON DELETE CASCADE,
+    upgrade_id TEXT NOT NULL REFERENCES upgrades(id) ON DELETE CASCADE,
+    level INTEGER NOT NULL DEFAULT 1,
+    purchased_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(account_id, upgrade_id)
+);
+
+-- Insert default upgrades
+INSERT OR IGNORE INTO upgrades (id, name, description, cost, income_boost, icon, sort_order, cost_multiplier, income_multiplier) VALUES
+('c8050a91-5683-4c60-b8b0-b60ed03699bc', 'Compte Épargne', 'Ouvrir un compte épargne avec intérêts', 100.00, 0.05, 'piggy-bank', 1, 1.5, 1.2),
+('046a70dd-5bd5-46cb-914c-fb5ffe351c89', 'Actions Tech', 'Investir dans les géants de la tech', 500.00, 0.25, 'trending-up', 2, 1.5, 1.2),
+('d4bb8b7e-aeb0-4717-a05f-7ec2c538d53d', 'Immobilier', 'Acheter un appartement à louer', 2500.00, 1.50, 'building', 3, 1.5, 1.2),
+('7ec2c538d53d-aeb0-4717-d4bb8b7e-a05f', 'Crypto Mining', 'Miner des cryptomonnaies', 10000.00, 5.00, 'cpu', 4, 1.5, 1.2),
+('a05f-7ec2c538d53d-d4bb8b7e-aeb0-4717', 'Startup', 'Lancer votre propre startup', 50000.00, 25.00, 'rocket', 5, 1.5, 1.2),
+('4717-a05f-7ec2c538d53d-d4bb8b7e-aeb0', 'Hedge Fund', 'Créer un fonds d''investissement', 250000.00, 150.00, 'bar-chart', 6, 1.5, 1.2),
+('aeb0-4717-a05f-7ec2c538d53d-d4bb8b7e', 'Empire', 'Construire un empire financier', 1000000.00, 750.00, 'crown', 7, 1.5, 1.2);
+`;
+        
+        async function initDatabase() {
+            try {
+                document.getElementById('status').textContent = 'Initializing database...';
+                
+                const SQL = await initSqlJs({
+                    locateFile: file => `https://sql.js.org/dist/${file}`
+                });
+                
+                const db = new SQL.Database();
+                
+                // Execute each SQL statement
+                const statements = sql.split(';').filter(stmt => stmt.trim());
+                
+                for (const statement of statements) {
+                    if (statement.trim()) {
+                        db.run(statement.trim());
+                    }
+                }
+                
+                // Export the database
+                const data = db.export();
+                const blob = new Blob([data], { type: 'application/x-sqlite3' });
+                const url = URL.createObjectURL(blob);
+                
+                // Create download link
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'database.sqlite';
+                a.textContent = 'Download Database File';
+                document.body.appendChild(a);
+                
+                document.getElementById('status').innerHTML = 
+                    'Database initialized successfully!<br>' +
+                    'Click the link below to download the database file.<br>' +
+                    'Save it as "database.sqlite" in your project root.';
+                
+                db.close();
+                
+            } catch (error) {
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+                console.error('Database initialization error:', error);
+            }
+        }
+        
+        initDatabase();
+    </script>
+</body>
+</html>

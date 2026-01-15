@@ -2,48 +2,25 @@ import { useEffect, useState } from 'react';
 import { BankHeader } from '@/components/BankHeader';
 import { UpgradeCard } from '@/components/UpgradeCard';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
-import { supabase } from '@/integrations/supabase/client';
+import { useRandomEventState } from '@/hooks/useRandomEventState';
+import { api, Upgrade, PurchasedUpgrade } from '@/lib/api';
 import { Loader2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface Upgrade {
-  id: string;
-  name: string;
-  description: string;
-  cost: number;
-  income_boost: number;
-  icon: string;
-  sort_order: number;
-  cost_multiplier: number;
-  income_multiplier: number;
-}
-
-interface PurchasedUpgrade {
-  upgrade_id: string;
-  level: number;
-}
-
 const Upgrades = () => {
-  const { account, loading: accountLoading, spendMoney, updateIncomeRate } = usePlayerAccount();
+  const { multiplier } = useRandomEventState();
+  const { account, loading: accountLoading, spendMoney, updateIncomeRate } = usePlayerAccount(multiplier);
   const [upgrades, setUpgrades] = useState<Upgrade[]>([]);
   const [purchasedUpgrades, setPurchasedUpgrades] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadUpgrades() {
-      const { data: upgradesData } = await supabase
-        .from('upgrades')
-        .select('*')
-        .order('sort_order');
-
-      if (upgradesData) {
-        setUpgrades(upgradesData.map(u => ({
-          ...u,
-          cost: Number(u.cost),
-          income_boost: Number(u.income_boost),
-          cost_multiplier: Number(u.cost_multiplier),
-          income_multiplier: Number(u.income_multiplier),
-        })));
+      try {
+        const upgradesData = await api.getUpgrades();
+        setUpgrades(upgradesData);
+      } catch (error) {
+        console.error('Error loading upgrades:', error);
       }
 
       setLoading(false);
@@ -56,15 +33,14 @@ const Upgrades = () => {
     async function loadPurchased() {
       if (!account) return;
 
-      const { data } = await supabase
-        .from('purchased_upgrades')
-        .select('upgrade_id, level')
-        .eq('account_id', account.id);
+      try {
+        const purchasedData = await api.getPurchasedUpgrades(account.id);
 
-      if (data) {
         const purchasedMap = new Map<string, number>();
-        data.forEach(p => purchasedMap.set(p.upgrade_id, p.level));
+        purchasedData.forEach(p => purchasedMap.set(p.upgrade_id, p.level));
         setPurchasedUpgrades(purchasedMap);
+      } catch (error) {
+        console.error('Error loading purchased upgrades:', error);
       }
     }
 
@@ -96,44 +72,37 @@ const Upgrades = () => {
       return;
     }
 
-    if (currentLevel === 0) {
-      // First purchase - insert new record
-      const { error } = await supabase
-        .from('purchased_upgrades')
-        .insert({
+    try {
+      if (currentLevel === 0) {
+        // First purchase - insert new record
+        await api.createPurchasedUpgrade({
           account_id: account.id,
           upgrade_id: upgrade.id,
           level: 1,
         });
-
-      if (error) {
-        toast.error('Erreur lors de l\'achat');
-        return;
+      } else {
+        // Upgrade existing - update level
+        await api.updatePurchasedUpgrade({
+          account_id: account.id,
+          upgrade_id: upgrade.id,
+          level: currentLevel + 1
+        });
       }
-    } else {
-      // Upgrade existing - update level
-      const { error } = await supabase
-        .from('purchased_upgrades')
-        .update({ level: currentLevel + 1 })
-        .eq('account_id', account.id)
-        .eq('upgrade_id', upgrade.id);
 
-      if (error) {
-        toast.error('Erreur lors de l\'amélioration');
-        return;
-      }
+      // Update income rate
+      const newRate = account.income_per_second + incomeBoost;
+      await updateIncomeRate(newRate);
+
+      setPurchasedUpgrades(prev => new Map(prev).set(upgrade.id, currentLevel + 1));
+      
+      const newLevel = currentLevel + 1;
+      toast.success(
+        `${upgrade.name} niveau ${newLevel} ! +${formatCurrency(incomeBoost)}/sec`
+      );
+    } catch (error) {
+      console.error('Error purchasing upgrade:', error);
+      toast.error('Erreur lors de l\'achat');
     }
-
-    // Update income rate
-    const newRate = account.income_per_second + incomeBoost;
-    await updateIncomeRate(newRate);
-
-    setPurchasedUpgrades(prev => new Map(prev).set(upgrade.id, currentLevel + 1));
-    
-    const newLevel = currentLevel + 1;
-    toast.success(
-      `${upgrade.name} niveau ${newLevel} ! +${formatCurrency(incomeBoost)}/sec`
-    );
   };
 
   const formatCurrency = (amount: number) => {

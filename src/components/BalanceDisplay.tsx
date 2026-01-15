@@ -18,22 +18,35 @@ export function BalanceDisplay({ balance, incomePerSecond, multiplier = 1 }: Bal
     return () => clearTimeout(timeout);
   }, [balance]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  };
+  const formatCompactEuro = (amount: number) => {
+    const safe = Number.isFinite(amount) ? amount : 0;
+    const abs = Math.abs(safe);
 
-  const formatIncome = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 4,
-      maximumFractionDigits: 4,
-    }).format(amount);
+    if (abs < 1000) {
+      return new Intl.NumberFormat('fr-FR', {
+        style: 'currency',
+        currency: 'EUR',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(safe);
+    }
+
+    const units = [
+      { value: 1e12, suffix: 'Bn' },
+      { value: 1e9, suffix: 'Md' },
+      { value: 1e6, suffix: 'M' },
+      { value: 1e3, suffix: 'K' },
+    ];
+
+    const unit = units.find(u => abs >= u.value) ?? units[units.length - 1];
+    const scaled = safe / unit.value;
+
+    const formatted = new Intl.NumberFormat('fr-FR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: Math.abs(scaled) >= 100 ? 0 : Math.abs(scaled) >= 10 ? 1 : 2,
+    }).format(scaled);
+
+    return `${formatted} ${unit.suffix} €`;
   };
 
   const getMultiplierColor = () => {
@@ -56,7 +69,7 @@ export function BalanceDisplay({ balance, incomePerSecond, multiplier = 1 }: Bal
           className={`transition-transform duration-200 ${isAnimating ? 'animate-counter-tick' : ''}`}
         >
           <span className="font-display text-5xl md:text-7xl font-bold text-primary glow-money">
-            {formatCurrency(displayBalance)}
+            {formatCompactEuro(displayBalance)}
           </span>
         </div>
       </div>
@@ -65,7 +78,7 @@ export function BalanceDisplay({ balance, incomePerSecond, multiplier = 1 }: Bal
       <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 border border-border">
         <TrendingUp className="w-4 h-4 text-primary" />
         <span className="text-sm text-muted-foreground">
-          +{formatIncome(incomePerSecond)}/sec
+          +{formatCompactEuro(incomePerSecond)}/sec
         </span>
         {multiplier !== 1 && (
           <span className={`flex items-center gap-1 text-sm font-bold ${getMultiplierColor()}`}>
