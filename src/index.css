@@ -1,0 +1,149 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Banking App Design System - Dark & Premium */
+
+@layer base {
+  :root {
+    --background: 220 20% 7%;
+    --foreground: 210 40% 98%;
+
+    --card: 220 18% 10%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 220 18% 12%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 160 84% 39%;
+    --primary-foreground: 220 20% 7%;
+
+    --secondary: 220 16% 16%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 220 14% 18%;
+    --muted-foreground: 215 20% 55%;
+
+    --accent: 160 60% 45%;
+    --accent-foreground: 220 20% 7%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 16% 18%;
+    --input: 220 16% 20%;
+    --ring: 160 84% 39%;
+
+    --radius: 1rem;
+
+    /* Custom tokens */
+    --money: 160 84% 39%;
+    --money-glow: 160 100% 50%;
+    --gold: 45 93% 47%;
+    --gold-glow: 45 100% 60%;
+    --surface-elevated: 220 16% 14%;
+    --gradient-money: linear-gradient(135deg, hsl(160 84% 39%), hsl(160 60% 50%));
+    --gradient-gold: linear-gradient(135deg, hsl(45 93% 47%), hsl(35 100% 60%));
+    --gradient-surface: linear-gradient(180deg, hsl(220 18% 12%), hsl(220 20% 8%));
+    --shadow-glow: 0 0 40px hsl(160 84% 39% / 0.2);
+    --shadow-card: 0 4px 24px hsl(0 0% 0% / 0.4);
+
+    --sidebar-background: 220 20% 7%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 160 84% 39%;
+    --sidebar-primary-foreground: 220 20% 7%;
+    --sidebar-accent: 220 16% 14%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 220 16% 18%;
+    --sidebar-ring: 160 84% 39%;
+  }
+
+  .dark {
+    --background: 220 20% 7%;
+    --foreground: 210 40% 98%;
+    --card: 220 18% 10%;
+    --card-foreground: 210 40% 98%;
+    --popover: 220 18% 12%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 160 84% 39%;
+    --primary-foreground: 220 20% 7%;
+    --secondary: 220 16% 16%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 220 14% 18%;
+    --muted-foreground: 215 20% 55%;
+    --accent: 160 60% 45%;
+    --accent-foreground: 220 20% 7%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 220 16% 18%;
+    --input: 220 16% 20%;
+    --ring: 160 84% 39%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-money {
+    @apply text-primary;
+  }
+
+  .bg-money {
+    @apply bg-primary;
+  }
+
+  .glow-money {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .gradient-money {
+    background: var(--gradient-money);
+  }
+
+  .gradient-gold {
+    background: var(--gradient-gold);
+  }
+
+  .gradient-surface {
+    background: var(--gradient-surface);
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-count {
+    animation: count-up 0.3s ease-out;
+  }
+
+  @keyframes count-up {
+    from {
+      transform: translateY(10px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .card-banking {
+    @apply bg-card rounded-2xl p-6;
+    box-shadow: var(--shadow-card);
+  }
+}
